@@ -2,6 +2,8 @@
 
 An Obsidian plugin for highlighting text and adding annotations, similar to Microsoft Word comments.
 
+**Supported Platforms:** Windows, Android (Obsidian Mobile)
+
 ## Features
 
 - Highlight selected text with multiple colors
