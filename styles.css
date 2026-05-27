@@ -612,6 +612,13 @@
   accent-color: var(--interactive-accent);
 }
 
+/* 分组拖拽放置目标 */
+.aa-group-drop-target {
+  border-color: var(--interactive-accent) !important;
+  background-color: color-mix(in srgb, var(--interactive-accent) 8%, transparent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+}
+
 .aa-search-card-note {
   font-size: 12px;
   color: var(--text-muted);
