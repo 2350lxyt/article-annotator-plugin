@@ -86,7 +86,18 @@ var LANGUAGES = {
     "fabAriaLabel": "Article Annotator quick actions",
     "locationPage": "Page {page}",
     "locationLine": "Line {line}",
-    "pdfAddNote": "✏️ Write note"
+    "pdfAddNote": "✏️ Write note",
+    "group": "📦 Group",
+    "groupSelected": "Group selected",
+    "cancelSelection": "Cancel selection",
+    "selectMultiple": "☑️ Multi-select",
+    "groupName": "Group name",
+    "createGroup": "Create group",
+    "renameGroup": "Rename group",
+    "ungroup": "Ungroup",
+    "collapseGroup": "Collapse group",
+    "expandGroup": "Expand group",
+    "groupCount": "${n} annotations"
   },
   "settings": {
     "defaultColor": "Default highlight color",
@@ -186,7 +197,18 @@ var LANGUAGES = {
     "fabAriaLabel": "文章批注快捷操作",
     "locationPage": "第 {page} 页",
     "locationLine": "第 {line} 行",
-    "pdfAddNote": "✏️ 写批注"
+    "pdfAddNote": "✏️ 写批注",
+    "group": "📦 分组",
+    "groupSelected": "分组选中",
+    "cancelSelection": "取消选择",
+    "selectMultiple": "☑️ 多选",
+    "groupName": "分组名称",
+    "createGroup": "创建分组",
+    "renameGroup": "重命名分组",
+    "ungroup": "取消分组",
+    "collapseGroup": "折叠分组",
+    "expandGroup": "展开分组",
+    "groupCount": "${n} 条批注"
   },
   "settings": {
     "defaultColor": "默认高亮颜色",
@@ -331,6 +353,7 @@ function normalizeAnnotation(annotation) {
     color: annotation.color || DEFAULT_SETTINGS.defaultColor,
     highlightedText: annotation.highlightedText || "",
     noteContent: annotation.noteContent || "",
+    groupId: annotation.groupId || null,
     created: typeof annotation.created === "number" ? annotation.created : Date.now(),
     updated: typeof annotation.updated === "number" ? annotation.updated : Date.now(),
     order: typeof annotation.order === "number" ? annotation.order : typeof annotation.created === "number" ? annotation.created : Date.now()
@@ -471,6 +494,7 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
   constructor() {
     super(...arguments);
     this.data = [];
+    this.groups = [];
     this.activeFile = null;
     this.sidebarView = null;
     this.mobileFabEl = null;
@@ -859,15 +883,18 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
     const saved = await this.loadData();
     if (saved) {
       this.data = Array.isArray(saved.annotations) ? saved.annotations.map(normalizeAnnotation).filter(Boolean) : [];
+      this.groups = Array.isArray(saved.groups) ? saved.groups : [];
       this.settings = Object.assign({}, DEFAULT_SETTINGS, saved.settings || {});
     } else {
       this.data = [];
+      this.groups = [];
       this.settings = Object.assign({}, DEFAULT_SETTINGS);
     }
   }
   async persistAll() {
     const persisted = {
       annotations: this.data,
+      groups: this.groups,
       settings: this.settings
     };
     await this.saveData(persisted);
@@ -947,6 +974,63 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
       this.schedulePdfRender(activePath, 60);
     }
     new import_obsidian.Notice(t("notifications.fileCleared", this).replace("${n}", String(count)));
+  }
+  // ==================== 分组管理 ====================
+  getGroupsForFile(filePath) {
+    return this.groups.filter((g) => g.filePath === filePath);
+  }
+  async addGroup(name, filePath) {
+    const group = {
+      id: generateId(),
+      name,
+      filePath,
+      collapsed: false,
+      order: Date.now(),
+      created: Date.now()
+    };
+    this.groups.push(group);
+    await this.persistAll();
+    return group;
+  }
+  async removeGroup(groupId) {
+    // 将分组中的批注移出分组
+    this.data = this.data.map((a) => {
+      if (a.groupId === groupId) {
+        return { ...a, groupId: null };
+      }
+      return a;
+    });
+    this.groups = this.groups.filter((g) => g.id !== groupId);
+    await this.persistAll();
+  }
+  async renameGroup(groupId, newName) {
+    const group = this.groups.find((g) => g.id === groupId);
+    if (!group) return;
+    group.name = newName;
+    await this.persistAll();
+  }
+  async updateGroup(groupId, updates) {
+    const group = this.groups.find((g) => g.id === groupId);
+    if (!group) return;
+    Object.assign(group, updates);
+    await this.persistAll();
+  }
+  async addAnnotationToGroup(annotationId, groupId) {
+    const annotation = this.data.find((a) => a.id === annotationId);
+    if (!annotation) return;
+    annotation.groupId = groupId;
+    annotation.updated = Date.now();
+    await this.persistAll();
+  }
+  async removeAnnotationFromGroup(annotationId) {
+    const annotation = this.data.find((a) => a.id === annotationId);
+    if (!annotation) return;
+    annotation.groupId = null;
+    annotation.updated = Date.now();
+    await this.persistAll();
+  }
+  getAnnotationsForGroup(groupId) {
+    return this.data.filter((a) => a.groupId === groupId);
   }
   setupMobileFab() {
     this.cleanupMobileFab();
@@ -1396,6 +1480,8 @@ var AnnotatorSidebarView = class extends import_obsidian.ItemView {
     this.currentFile = null;
     this.plugin = plugin;
     this.icon = "pen-tool";
+    this.selectedAnnotations = new Set();
+    this.isMultiSelectMode = false;
   }
   getViewType() {
     return VIEW_TYPE;
@@ -1470,6 +1556,32 @@ var AnnotatorSidebarView = class extends import_obsidian.ItemView {
       await this.plugin.clearFileAnnotations();
       this.render();
     };
+    // 多选按钮
+    const multiSelectBtn = actions.createEl("button", { text: t("ui.selectMultiple", this.plugin) });
+    multiSelectBtn.style.cssText = btnStyle;
+    multiSelectBtn.onclick = () => {
+      this.isMultiSelectMode = !this.isMultiSelectMode;
+      if (!this.isMultiSelectMode) {
+        this.selectedAnnotations.clear();
+      }
+      this.render();
+    };
+    // 分组按钮（仅在多选模式下显示）
+    if (this.isMultiSelectMode && this.selectedAnnotations.size > 0) {
+      const groupBtn = actions.createEl("button", { text: t("ui.groupSelected", this.plugin) });
+      groupBtn.style.cssText = btnStyle;
+      groupBtn.onclick = () => this.showCreateGroupDialog();
+    }
+    // 取消选择按钮（仅在多选模式下显示）
+    if (this.isMultiSelectMode) {
+      const cancelBtn = actions.createEl("button", { text: t("ui.cancelSelection", this.plugin) });
+      cancelBtn.style.cssText = btnStyle;
+      cancelBtn.onclick = () => {
+        this.isMultiSelectMode = false;
+        this.selectedAnnotations.clear();
+        this.render();
+      };
+    }
     const list = container.createDiv("aa-sidebar-list");
     list.style.cssText = "flex:1;overflow-y:auto;padding:8px;";
     if (annotations.length === 0) {
@@ -1485,140 +1597,366 @@ var AnnotatorSidebarView = class extends import_obsidian.ItemView {
       const bo = typeof b.order === "number" ? b.order : b.created;
       return bo - ao;
     });
-    sorted.forEach((a) => {
-      const card = list.createDiv("aa-card");
-      card.style.cssText = `
-        margin:6px 0;border-radius:6px;
-        background:var(--background-secondary);
-        transition:box-shadow 0.15s;
-      `;
-      card.style.borderTop = `3px solid ${a.color}`;
-      const headerRow = card.createDiv("aa-card-header");
-      headerRow.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:6px 10px 0;";
-      const colorName = getColorName(a.color, this.plugin) || t("ui.highlights", this.plugin);
-      const typeBadge = headerRow.createEl("span", {
-        text: a.noteContent ? `\u{1F4DD} ${colorName}` : `\u{1F506} ${colorName}`
-      });
-      typeBadge.style.cssText = `font-size:11px;color:${a.color};font-weight:500;`;
-      headerRow.createEl("span", {
-        text: formatTime(a.created, this.plugin)
-      }).style.cssText = "font-size:10px;color:var(--text-faint);";
-      const textEl = card.createDiv("aa-card-text");
-      textEl.setText(a.highlightedText);
-      textEl.style.cssText = "padding:4px 10px;font-size:13px;line-height:1.5;word-break:break-word;";
-      if (a.noteContent) {
-        const noteEl = card.createDiv("aa-card-note");
-        noteEl.setText(`\u{1F4AC} ${a.noteContent}`);
-        noteEl.style.cssText = "padding:4px 10px;font-size:12px;color:var(--text-muted);border-top:1px solid var(--background-modifier-border);margin-top:4px;";
-      }
-      const lineInfo = card.createDiv("aa-card-line");
-      lineInfo.setText(getAnnotationLocationLabel(a, this.plugin));
-      lineInfo.style.cssText = "padding:0 10px 4px;font-size:10px;color:var(--text-faint);";
-      const cardActions = card.createDiv("aa-card-actions");
-      cardActions.style.cssText = "display:flex;gap:2px;padding:4px 8px 6px;border-top:1px solid var(--background-modifier-border);";
-      const actionBtnStyle = "flex:1;padding:4px 6px;font-size:11px;border:none;background:transparent;cursor:pointer;border-radius:4px;";
-      const navBtn = cardActions.createEl("button", { text: t("ui.navigate", this.plugin) });
-      navBtn.style.cssText = actionBtnStyle;
-      navBtn.onclick = async (e) => {
-        e.stopPropagation();
-        await this.plugin.navigateToAnnotation(a);
-      };
-      const editBtn = cardActions.createEl("button", { text: t("ui.editNote", this.plugin) });
-      editBtn.style.cssText = actionBtnStyle;
-      editBtn.onclick = (e) => {
-        e.stopPropagation();
-        const modal = new NoteModal(
-          this.plugin.app,
-          this.plugin,
-          a,
-          (content) => {
-            this.plugin.updateAnnotation(a.id, { noteContent: content });
-            this.render();
-          }
-        );
-        modal.open();
-      };
-      const deleteBtn = cardActions.createEl("button", { text: "\u{1F5D1}\uFE0F" });
-      deleteBtn.style.cssText = actionBtnStyle;
-      deleteBtn.onclick = async (e) => {
-        e.stopPropagation();
-        if (!confirm(t("ui.deleteConfirm", this.plugin)))
-          return;
-        await this.plugin.removeAnnotation(a.id);
-        this.render();
-      };
-      card.onmouseenter = () => {
-        card.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
-      };
-      card.onmouseleave = () => {
-        card.style.boxShadow = "none";
-      };
-
-      // 拖拽排序（仅当前文件内）
-      card.draggable = true;
-      card.dataset.annotationId = a.id;
-      card.addClass("aa-draggable-card");
-
-      card.addEventListener("dragstart", (ev) => {
-        card.addClass("aa-card-dragging");
-        if (ev.dataTransfer) {
-          ev.dataTransfer.effectAllowed = "move";
-          ev.dataTransfer.setData("text/plain", a.id);
-        }
-      });
-
-      card.addEventListener("dragend", () => {
-        card.removeClass("aa-card-dragging");
-        container.querySelectorAll(".aa-card-drop-target").forEach((el) => el.classList.remove("aa-card-drop-target"));
-      });
-
-      card.addEventListener("dragover", (ev) => {
-        ev.preventDefault();
-        card.addClass("aa-card-drop-target");
-      });
-
-      card.addEventListener("dragleave", () => {
-        card.removeClass("aa-card-drop-target");
-      });
-
-      card.addEventListener("drop", async (ev) => {
-        ev.preventDefault();
-        card.removeClass("aa-card-drop-target");
-        const fromId = ev.dataTransfer?.getData("text/plain");
-        const toId = a.id;
-        if (!fromId || fromId === toId)
-          return;
-
-        const current = [...this.plugin.getAnnotationsForFile(this.currentFile.path)].sort((x, y) => {
-          const xo = typeof x.order === "number" ? x.order : x.created;
-          const yo = typeof y.order === "number" ? y.order : y.created;
-          return yo - xo;
-        });
-
-        const fromIdx = current.findIndex((x) => x.id === fromId);
-        const toIdx = current.findIndex((x) => x.id === toId);
-        if (fromIdx < 0 || toIdx < 0)
-          return;
-
-        const [moved] = current.splice(fromIdx, 1);
-        current.splice(toIdx, 0, moved);
-
-        const base = Date.now();
-        const reordered = current.map((ann, i) => normalizeAnnotation({
-          ...ann,
-          order: base - i,
-          updated: Date.now()
-        }));
-        this.plugin.data = this.plugin.data.map((ann) => {
-          if (ann.filePath !== this.currentFile.path)
-            return ann;
-          const next = reordered.find((c) => c.id === ann.id);
-          return next ? next : ann;
-        });
-        await this.plugin.saveAnnotations();
-        this.render();
-      });
+    
+    // 获取当前文件的分组
+    const groups = this.plugin.getGroupsForFile(this.currentFile.path);
+    
+    // 按分组组织批注
+    const groupedAnnotations = new Map();
+    const ungroupedAnnotations = [];
+    
+    // 初始化分组Map
+    groups.forEach(group => {
+      groupedAnnotations.set(group.id, []);
     });
+    
+    // 将批注分到对应分组
+    sorted.forEach(annotation => {
+      if (annotation.groupId && groupedAnnotations.has(annotation.groupId)) {
+        groupedAnnotations.get(annotation.groupId).push(annotation);
+      } else {
+        ungroupedAnnotations.push(annotation);
+      }
+    });
+    
+    // 渲染分组
+    groups.forEach(group => {
+      const groupAnnotations = groupedAnnotations.get(group.id);
+      if (groupAnnotations.length === 0) return;
+      
+      const groupContainer = list.createDiv("aa-group-container");
+      groupContainer.style.cssText = "margin:8px 0;border:1px solid var(--background-modifier-border);border-radius:8px;overflow:hidden;";
+      
+      // 分组头部
+      const groupHeader = groupContainer.createDiv("aa-group-header");
+      groupHeader.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--background-secondary);cursor:pointer;";
+      
+      const groupTitle = groupHeader.createDiv("aa-group-title");
+      groupTitle.style.cssText = "display:flex;align-items:center;gap:6px;";
+      
+      const collapseIcon = groupTitle.createEl("span", { 
+        text: group.collapsed ? "▶" : "▼",
+        cls: "aa-collapse-icon"
+      });
+      collapseIcon.style.cssText = "font-size:10px;transition:transform 0.2s;";
+      
+      const groupNameEl = groupTitle.createEl("span", { text: group.name });
+      groupNameEl.style.cssText = "font-weight:600;font-size:13px;";
+      
+      const groupCount = groupHeader.createEl("span", { 
+        text: t("ui.groupCount", this.plugin).replace("${n}", String(groupAnnotations.length))
+      });
+      groupCount.style.cssText = "font-size:11px;color:var(--text-muted);";
+      
+      // 分组操作按钮
+      const groupActions = groupHeader.createDiv("aa-group-actions");
+      groupActions.style.cssText = "display:flex;gap:4px;";
+      
+      const renameBtn = groupActions.createEl("button", { text: "✏️" });
+      renameBtn.style.cssText = "background:none;border:none;cursor:pointer;font-size:12px;padding:2px;";
+      renameBtn.title = t("ui.renameGroup", this.plugin);
+      renameBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.showRenameGroupDialog(group);
+      };
+      
+      const ungroupBtn = groupActions.createEl("button", { text: "📤" });
+      ungroupBtn.style.cssText = "background:none;border:none;cursor:pointer;font-size:12px;padding:2px;";
+      ungroupBtn.title = t("ui.ungroup", this.plugin);
+      ungroupBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (!confirm(`确定将 "${group.name}" 中的 ${groupAnnotations.length} 个批注取消分组？`)) return;
+        for (const annotation of groupAnnotations) {
+          await this.plugin.removeAnnotationFromGroup(annotation.id);
+        }
+        await this.plugin.removeGroup(group.id);
+        this.render();
+      };
+      
+      // 点击折叠/展开
+      groupHeader.onclick = () => {
+        group.collapsed = !group.collapsed;
+        this.plugin.updateGroup(group.id, { collapsed: group.collapsed });
+        this.render();
+      };
+      
+      // 分组内容（可折叠）
+      if (!group.collapsed) {
+        const groupContent = groupContainer.createDiv("aa-group-content");
+        groupContent.style.cssText = "padding:4px;background:var(--background-primary);";
+        
+        groupAnnotations.forEach(annotation => {
+          this.renderAnnotationCard(groupContent, annotation);
+        });
+      }
+    });
+    
+    // 渲染未分组的批注
+    if (ungroupedAnnotations.length > 0) {
+      if (groups.length > 0) {
+        const separator = list.createDiv("aa-ungrouped-separator");
+        separator.style.cssText = "padding:8px 12px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--background-modifier-border);";
+        separator.setText("未分组批注");
+      }
+      
+      ungroupedAnnotations.forEach(annotation => {
+        this.renderAnnotationCard(list, annotation);
+      });
+    }
+  }
+  renderAnnotationCard(container, annotation) {
+    const a = annotation;
+    const card = container.createDiv("aa-card");
+    card.style.cssText = `
+      margin:6px 0;border-radius:6px;
+      background:var(--background-secondary);
+      transition:box-shadow 0.15s;
+    `;
+    card.style.borderTop = `3px solid ${a.color}`;
+    // 多选复选框
+    if (this.isMultiSelectMode) {
+      const checkboxContainer = card.createDiv("aa-card-checkbox");
+      checkboxContainer.style.cssText = "position:absolute;top:6px;left:6px;z-index:1;";
+      const checkbox = checkboxContainer.createEl("input", { type: "checkbox" });
+      checkbox.checked = this.selectedAnnotations.has(a.id);
+      checkbox.style.cssText = "cursor:pointer;";
+      checkbox.onchange = () => {
+        if (checkbox.checked) {
+          this.selectedAnnotations.add(a.id);
+        } else {
+          this.selectedAnnotations.delete(a.id);
+        }
+        this.render();
+      };
+      card.style.position = "relative";
+      card.style.paddingLeft = "28px";
+    }
+    const headerRow = card.createDiv("aa-card-header");
+    headerRow.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:6px 10px 0;";
+    const colorName = getColorName(a.color, this.plugin) || t("ui.highlights", this.plugin);
+    const typeBadge = headerRow.createEl("span", {
+      text: a.noteContent ? `\u{1F4DD} ${colorName}` : `\u{1F506} ${colorName}`
+    });
+    typeBadge.style.cssText = `font-size:11px;color:${a.color};font-weight:500;`;
+    headerRow.createEl("span", {
+      text: formatTime(a.created, this.plugin)
+    }).style.cssText = "font-size:10px;color:var(--text-faint);";
+    const textEl = card.createDiv("aa-card-text");
+    textEl.setText(a.highlightedText);
+    textEl.style.cssText = "padding:4px 10px;font-size:13px;line-height:1.5;word-break:break-word;";
+    if (a.noteContent) {
+      const noteEl = card.createDiv("aa-card-note");
+      noteEl.setText(`\u{1F4AC} ${a.noteContent}`);
+      noteEl.style.cssText = "padding:4px 10px;font-size:12px;color:var(--text-muted);border-top:1px solid var(--background-modifier-border);margin-top:4px;";
+    }
+    const lineInfo = card.createDiv("aa-card-line");
+    lineInfo.setText(getAnnotationLocationLabel(a, this.plugin));
+    lineInfo.style.cssText = "padding:0 10px 4px;font-size:10px;color:var(--text-faint);";
+    const cardActions = card.createDiv("aa-card-actions");
+    cardActions.style.cssText = "display:flex;gap:2px;padding:4px 8px 6px;border-top:1px solid var(--background-modifier-border);";
+    const actionBtnStyle = "flex:1;padding:4px 6px;font-size:11px;border:none;background:transparent;cursor:pointer;border-radius:4px;";
+    const navBtn = cardActions.createEl("button", { text: t("ui.navigate", this.plugin) });
+    navBtn.style.cssText = actionBtnStyle;
+    navBtn.onclick = async (e) => {
+      e.stopPropagation();
+      await this.plugin.navigateToAnnotation(a);
+    };
+    const editBtn = cardActions.createEl("button", { text: t("ui.editNote", this.plugin) });
+    editBtn.style.cssText = actionBtnStyle;
+    editBtn.onclick = (e) => {
+      e.stopPropagation();
+      const modal = new NoteModal(
+        this.plugin.app,
+        this.plugin,
+        a,
+        (content) => {
+          this.plugin.updateAnnotation(a.id, { noteContent: content });
+          this.render();
+        }
+      );
+      modal.open();
+    };
+    const deleteBtn = cardActions.createEl("button", { text: "\u{1F5D1}\uFE0F" });
+    deleteBtn.style.cssText = actionBtnStyle;
+    deleteBtn.onclick = async (e) => {
+      e.stopPropagation();
+      if (!confirm(t("ui.deleteConfirm", this.plugin)))
+        return;
+      await this.plugin.removeAnnotation(a.id);
+      this.render();
+    };
+    card.onmouseenter = () => {
+      card.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+    };
+    card.onmouseleave = () => {
+      card.style.boxShadow = "none";
+    };
+
+    // 拖拽排序（仅当前文件内）
+    card.draggable = true;
+    card.dataset.annotationId = a.id;
+    card.addClass("aa-draggable-card");
+
+    card.addEventListener("dragstart", (ev) => {
+      card.addClass("aa-card-dragging");
+      if (ev.dataTransfer) {
+        ev.dataTransfer.effectAllowed = "move";
+        ev.dataTransfer.setData("text/plain", a.id);
+      }
+    });
+
+    card.addEventListener("dragend", () => {
+      card.removeClass("aa-card-dragging");
+      container.querySelectorAll(".aa-card-drop-target").forEach((el) => el.classList.remove("aa-card-drop-target"));
+    });
+
+    card.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      card.addClass("aa-card-drop-target");
+    });
+
+    card.addEventListener("dragleave", () => {
+      card.removeClass("aa-card-drop-target");
+    });
+
+    card.addEventListener("drop", async (ev) => {
+      ev.preventDefault();
+      card.removeClass("aa-card-drop-target");
+      const fromId = ev.dataTransfer?.getData("text/plain");
+      const toId = a.id;
+      if (!fromId || fromId === toId)
+        return;
+
+      const current = [...this.plugin.getAnnotationsForFile(this.currentFile.path)].sort((x, y) => {
+        const xo = typeof x.order === "number" ? x.order : x.created;
+        const yo = typeof y.order === "number" ? y.order : y.created;
+        return yo - xo;
+      });
+
+      const fromIdx = current.findIndex((x) => x.id === fromId);
+      const toIdx = current.findIndex((x) => x.id === toId);
+      if (fromIdx < 0 || toIdx < 0)
+        return;
+
+      const [moved] = current.splice(fromIdx, 1);
+      current.splice(toIdx, 0, moved);
+
+      const base = Date.now();
+      const reordered = current.map((ann, i) => normalizeAnnotation({
+        ...ann,
+        order: base - i,
+        updated: Date.now()
+      }));
+      this.plugin.data = this.plugin.data.map((ann) => {
+        if (ann.filePath !== this.currentFile.path)
+          return ann;
+        const next = reordered.find((c) => c.id === ann.id);
+        return next ? next : ann;
+      });
+      await this.plugin.saveAnnotations();
+      this.render();
+    });
+  }
+  showCreateGroupDialog() {
+    const selectedIds = Array.from(this.selectedAnnotations);
+    if (selectedIds.length === 0) return;
+    
+    // 创建对话框
+    const modal = new import_obsidian.Modal(this.plugin.app);
+    modal.titleEl.setText(t("ui.createGroup", this.plugin));
+    
+    const content = modal.contentEl;
+    content.createEl("p", { 
+      text: `将 ${selectedIds.length} 个批注分组到：` 
+    });
+    
+    const input = content.createEl("input", {
+      type: "text",
+      placeholder: t("ui.groupName", this.plugin)
+    });
+    input.style.cssText = "width:100%;padding:8px;margin:8px 0;border-radius:4px;border:1px solid var(--background-modifier-border);";
+    
+    const buttonContainer = content.createDiv();
+    buttonContainer.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:12px;";
+    
+    const cancelBtn = buttonContainer.createEl("button", { text: t("ui.cancel", this.plugin) });
+    cancelBtn.onclick = () => modal.close();
+    
+    const confirmBtn = buttonContainer.createEl("button", { text: t("ui.createGroup", this.plugin) });
+    confirmBtn.style.cssText = "background:var(--interactive-accent);color:var(--text-on-accent);";
+    confirmBtn.onclick = async () => {
+      const groupName = input.value.trim();
+      if (!groupName) return;
+      
+      // 创建分组
+      const group = await this.plugin.addGroup(groupName, this.currentFile.path);
+      
+      // 将选中的批注添加到分组
+      for (const annotationId of selectedIds) {
+        await this.plugin.addAnnotationToGroup(annotationId, group.id);
+      }
+      
+      // 退出多选模式
+      this.isMultiSelectMode = false;
+      this.selectedAnnotations.clear();
+      
+      modal.close();
+      this.render();
+    };
+    
+    // 回车确认
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        confirmBtn.click();
+      }
+    });
+    
+    modal.open();
+    input.focus();
+  }
+  showRenameGroupDialog(group) {
+    const modal = new import_obsidian.Modal(this.plugin.app);
+    modal.titleEl.setText(t("ui.renameGroup", this.plugin));
+    
+    const content = modal.contentEl;
+    content.createEl("p", { 
+      text: `重命名分组 "${group.name}"：` 
+    });
+    
+    const input = content.createEl("input", {
+      type: "text",
+      value: group.name
+    });
+    input.style.cssText = "width:100%;padding:8px;margin:8px 0;border-radius:4px;border:1px solid var(--background-modifier-border);";
+    
+    const buttonContainer = content.createDiv();
+    buttonContainer.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:12px;";
+    
+    const cancelBtn = buttonContainer.createEl("button", { text: t("ui.cancel", this.plugin) });
+    cancelBtn.onclick = () => modal.close();
+    
+    const confirmBtn = buttonContainer.createEl("button", { text: t("ui.renameGroup", this.plugin) });
+    confirmBtn.style.cssText = "background:var(--interactive-accent);color:var(--text-on-accent);";
+    confirmBtn.onclick = async () => {
+      const newName = input.value.trim();
+      if (!newName || newName === group.name) {
+        modal.close();
+        return;
+      }
+      
+      await this.plugin.renameGroup(group.id, newName);
+      modal.close();
+      this.render();
+    };
+    
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        confirmBtn.click();
+      }
+    });
+    
+    modal.open();
+    input.select();
   }
 };
 var AnnotatorSettingTab = class extends import_obsidian.PluginSettingTab {
