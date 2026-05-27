@@ -5,6 +5,8 @@
 [![Release](https://img.shields.io/github/v/release/kilng235/article-annotator-plugin)](https://github.com/kilng235/article-annotator-plugin/releases)
 [![Obsidian Plugins](https://img.shields.io/badge/Obsidian-Plugin-blue)](https://obsidian.md/plugins)
 
+> 💖 如果觉得这个插件好用，请给个 Star 支持一下！
+
 ---
 
 ## 功能
@@ -12,6 +14,7 @@
 - **文本高亮 + 批注**：在 Markdown 编辑器中高亮选中文字，添加类似 Word 的批注
 - **侧边栏管理**：在侧边栏面板中查看所有批注，支持编辑、删除、导出
 - **批注卡片拖拽排序**：在侧边栏中自由拖拽调整批注顺序
+- **批注分组管理**：支持选择多个批注创建分组，拖拽归类，折叠/展开，重命名、取消分组
 - **多端支持**：支持 **电脑（Desktop） / iPad / 手机（Android）** 三端使用
   - ⚠️ 跨设备需手动同步：复制 `.obsidian/plugins/article-annotator/data.json` 文件到目标设备
 - **中英双语**：支持中英文界面切换
@@ -25,6 +28,7 @@
 - **Text Highlight + Annotations**: Highlight selected text in Markdown editor and add Word-like comments
 - **Sidebar Management**: View all annotations in the sidebar panel with edit, delete, and export support
 - **Drag-and-Drop Cards**: Reorder annotation cards freely in the sidebar
+- **Annotation Groups**: Create groups from multiple annotations, drag to organize, collapse/expand, rename, ungroup
 - **Multi-Device Support**: Works on **Desktop / iPad / Android**
   - ⚠️ Manual sync: copy `.obsidian/plugins/article-annotator/data.json` to the target device
 - **Bilingual**: Switch between Chinese and English interfaces
