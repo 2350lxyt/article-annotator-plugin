@@ -15,8 +15,9 @@
 - **侧边栏管理**：在侧边栏面板中查看所有批注，支持编辑、删除、导出
 - **批注卡片拖拽排序**：在侧边栏中自由拖拽调整批注顺序
 - **批注分组管理**：支持选择多个批注创建分组，拖拽归类，折叠/展开，重命名、取消分组
-- **多端支持**：支持 **电脑（Desktop） / iPad / 手机（Android）** 三端使用
-  - ⚠️ 跨设备需手动同步：复制 `.obsidian/plugins/article-annotator/data.json` 文件到目标设备
+- **多端支持**：支持 **电脑（Desktop） / iPad / 手机（Android）** 三端同步
+  - 批注同步文件：`article-annotator/annotations.json`
+  - 安装后不会立刻创建；首次开始批注或从旧版本迁移数据时会自动创建
 - **中英双语**：支持中英文界面切换
 - **6 色高亮**：暖黄、浅绿、浅蓝、浅紫、浅红、橙色，支持自定义颜色
 - **快捷键支持**：高亮、新建批注、删除批注均可绑定快捷键
@@ -29,8 +30,9 @@
 - **Sidebar Management**: View all annotations in the sidebar panel with edit, delete, and export support
 - **Drag-and-Drop Cards**: Reorder annotation cards freely in the sidebar
 - **Annotation Groups**: Create groups from multiple annotations, drag to organize, collapse/expand, rename, ungroup
-- **Multi-Device Support**: Works on **Desktop / iPad / Android**
-  - ⚠️ Manual sync: copy `.obsidian/plugins/article-annotator/data.json` to the target device
+- **Multi-Device Sync**: Sync annotations across **Desktop / iPad / Android**
+  - Synced annotation file: `article-annotator/annotations.json`
+  - Created automatically when you add your first annotation or when legacy data is migrated
 - **Bilingual**: Switch between Chinese and English interfaces
 - **6 Highlight Colors**: Warm Yellow, Light Green, Light Blue, Light Purple, Light Red, Orange — customizable
 - **Keyboard Shortcuts**: Highlight, new annotation, and delete can all be bound to shortcuts
@@ -168,15 +170,17 @@ See [CHANGELOG](https://github.com/kilng235/article-annotator-plugin/blob/main/C
 
 ## 注意事项
 
-- 所有批注数据独立保存于 `.obsidian/plugins/article-annotator/data.json`，**不修改原文文件**
-- 跨设备同步：手动复制 `data.json` 文件到目标设备的 `.obsidian/plugins/article-annotator/` 目录
+- 所有批注数据独立保存于知识库根目录下的 `article-annotator/annotations.json`，**不修改原文文件**
+- 安装插件后不会立刻创建该文件；首次开始批注或旧版数据迁移时会自动创建
+- 旧版本保存在 `.obsidian/plugins/article-annotator/data.json` 的批注会自动迁移到新的同步文件
 - 阅读模式下高亮不显示，仅编辑模式可见
 
 <details>
 <summary>🔤 Notes (English)</summary>
 
-- All annotation data is stored independently in `.obsidian/plugins/article-annotator/data.json`, **does not modify original files**
-- Cross-device sync: manually copy `data.json` to the target device's `.obsidian/plugins/article-annotator/` directory
+- All annotation data is stored independently in `article-annotator/annotations.json` at the root of your vault, **without modifying original files**
+- This file is not created immediately on install; it is created automatically when you add your first annotation or when legacy data is migrated
+- Existing annotations stored in `.obsidian/plugins/article-annotator/data.json` are migrated automatically to the new synced file
 - Highlights are not visible in Reading mode, only in Editing mode
 
 </details>
