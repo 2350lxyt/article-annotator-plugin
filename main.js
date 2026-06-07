@@ -51,6 +51,8 @@ var LANGUAGES = {
     "crossPageNotSupported": "Cross-page selection is not supported. Please select text within the same page.",
     "invalidHex": "Please enter a valid hex color, e.g. #FCD34D",
     "invalidHexColor": "Please enter a valid hex color, e.g. #FCD34D",
+    "syncedStoreReadFailed": "Failed to read synced annotations file",
+    "annotationsMigrated": "Annotations migrated to vault storage",
     "exportDone": "✅ Exported:",
     "clearFileConfirm": "Are you sure you want to clear all ${n} annotations in the current file?",
     "highlightAdded": "✅ ${color} Highlight added",
@@ -171,6 +173,8 @@ var LANGUAGES = {
     "crossPageNotSupported": "跨页选择暂不支持，请在同一页内选择文本",
     "invalidHex": "请输入有效的 hex 颜色，如 #FCD34D",
     "invalidHexColor": "请输入有效的十六进制颜色，如 #FCD34D",
+    "syncedStoreReadFailed": "同步批注文件读取失败",
+    "annotationsMigrated": "批注已迁移到知识库存储",
     "exportDone": "✅ 已导出：",
     "clearFileConfirm": "确定清空当前文件的 ${n} 条批注？",
     "highlightAdded": "✅ ${color} 高亮已添加",
@@ -486,6 +490,8 @@ var DEFAULT_SETTINGS = {
   language: "zh"
 };
 var VIEW_TYPE = "article-annotator-sidebar";
+var ANNOTATION_STORE_DIR = "_article-annotator";
+var ANNOTATION_STORE_FILE = "annotations.json";
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 }
@@ -527,6 +533,8 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
     this.mobileFabPanelEl = null;
     this.pdfContextMenuHandler = null;
     this.pdfRenderTimers = /* @__PURE__ */ new Map();
+    this.annotationStorePath = `${ANNOTATION_STORE_DIR}/${ANNOTATION_STORE_FILE}`;
+    this.isReloadingAnnotationStore = false;
   }
   // ==================== 生命周期 ====================
   async onload() {
@@ -559,6 +567,13 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
     this.registerEvent(
       this.app.workspace.on("layout-change", () => {
         this.schedulePdfRender();
+      })
+    );
+    this.registerEvent(
+      this.app.vault.on("modify", async (file) => {
+        if (file?.path === this.getAnnotationStorePath()) {
+          await this.reloadAnnotationStoreFromVault();
+        }
       })
     );
     this.addCommand({
@@ -614,7 +629,8 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
     this.clearPdfRenderTimers();
     this.app.workspace.detachLeavesOfType(VIEW_TYPE);
   }
-  handleActiveFileChange(file) {
+  async handleActiveFileChange(file) {
+    await this.reloadAnnotationStoreFromVault();
     this.activeFile = file;
     if (this.sidebarView)
       this.sidebarView.update(file);
@@ -905,31 +921,118 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
     }
   }
   // ==================== 数据持久化 ====================
+  getAnnotationStorePath() {
+    return this.annotationStorePath;
+  }
+  async ensureAnnotationStoreDir() {
+    const adapter = this.app.vault.adapter;
+    try {
+      if (!await adapter.exists(ANNOTATION_STORE_DIR)) {
+        await adapter.mkdir(ANNOTATION_STORE_DIR);
+      }
+    } catch (error) {
+      if (!await adapter.exists(ANNOTATION_STORE_DIR)) {
+        throw error;
+      }
+    }
+  }
+  async readAnnotationStore() {
+    const adapter = this.app.vault.adapter;
+    const filePath = this.getAnnotationStorePath();
+    if (!await adapter.exists(filePath)) {
+      return null;
+    }
+    try {
+      const raw = await adapter.read(filePath);
+      return JSON.parse(raw);
+    } catch (error) {
+      console.error("Article Annotator: failed to read annotation store", error);
+      new import_obsidian.Notice(t("notifications.syncedStoreReadFailed", this));
+      return null;
+    }
+  }
+  async writeAnnotationStore(data) {
+    const adapter = this.app.vault.adapter;
+    await this.ensureAnnotationStoreDir();
+    await adapter.write(this.getAnnotationStorePath(), JSON.stringify(data, null, 2));
+  }
+  async readLegacyPluginData() {
+    const legacy = await this.loadData();
+    return legacy && typeof legacy === "object" ? legacy : null;
+  }
+  async writeLegacyPluginData(data) {
+    const local = await this.readLegacyPluginData() || {};
+    await this.saveData({
+      ...local,
+      ...data
+    });
+  }
+  async migrateLegacyPluginData(settingsFallback = null) {
+    const legacy = await this.readLegacyPluginData();
+    if (!legacy)
+      return settingsFallback || null;
+    const migratedAnnotations = Array.isArray(legacy.annotations) ? legacy.annotations : [];
+    const migratedGroups = Array.isArray(legacy.groups) ? legacy.groups : [];
+    if (migratedAnnotations.length > 0 || migratedGroups.length > 0) {
+      await this.writeAnnotationStore({
+        annotations: migratedAnnotations,
+        groups: migratedGroups
+      });
+      new import_obsidian.Notice(t("notifications.annotationsMigrated", this));
+    }
+    const nextSettings = Object.assign({}, settingsFallback || DEFAULT_SETTINGS, legacy.settings || {});
+    await this.writeLegacyPluginData({ settings: nextSettings });
+    return nextSettings;
+  }
   async loadSettingsAndData() {
-    const saved = await this.loadData();
-    if (saved) {
-      this.data = Array.isArray(saved.annotations) ? saved.annotations.map(normalizeAnnotation).filter(Boolean) : [];
-      this.groups = Array.isArray(saved.groups) ? saved.groups : [];
-      this.settings = Object.assign({}, DEFAULT_SETTINGS, saved.settings || {});
+    const local = await this.readLegacyPluginData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, local?.settings || {});
+    let synced = await this.readAnnotationStore();
+    if (!synced) {
+      const migratedSettings = await this.migrateLegacyPluginData(this.settings);
+      if (migratedSettings) {
+        this.settings = migratedSettings;
+      }
+      synced = await this.readAnnotationStore();
+    }
+    if (synced) {
+      this.data = Array.isArray(synced.annotations) ? synced.annotations.map(normalizeAnnotation).filter(Boolean) : [];
+      this.groups = Array.isArray(synced.groups) ? synced.groups : [];
     } else {
       this.data = [];
       this.groups = [];
-      this.settings = Object.assign({}, DEFAULT_SETTINGS);
+    }
+  }
+  async reloadAnnotationStoreFromVault() {
+    if (this.isReloadingAnnotationStore)
+      return;
+    this.isReloadingAnnotationStore = true;
+    try {
+      const synced = await this.readAnnotationStore();
+      this.data = Array.isArray(synced?.annotations) ? synced.annotations.map(normalizeAnnotation).filter(Boolean) : [];
+      this.groups = Array.isArray(synced?.groups) ? synced.groups : [];
+      if (this.sidebarView) {
+        this.sidebarView.update(this.activeFile);
+      }
+      refreshHighlights(this);
+      this.schedulePdfRender();
+    } finally {
+      this.isReloadingAnnotationStore = false;
     }
   }
   async persistAll() {
     const persisted = {
       annotations: this.data,
-      groups: this.groups,
-      settings: this.settings
+      groups: this.groups
     };
-    await this.saveData(persisted);
+    await this.writeAnnotationStore(persisted);
+    await this.writeLegacyPluginData(persisted);
   }
   async saveAnnotations() {
     await this.persistAll();
   }
   async saveSettings() {
-    await this.persistAll();
+    await this.writeLegacyPluginData({ settings: this.settings });
   }
   getActiveFilePath() {
     return this.activeFile?.path || null;
