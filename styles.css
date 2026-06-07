@@ -69,6 +69,11 @@
 
 
 .aa-sidebar {
+  --aa-surface-strong: color-mix(in srgb, var(--background-secondary) 90%, #ffffff 10%);
+  --aa-surface-soft: color-mix(in srgb, var(--background-primary) 93%, var(--interactive-accent) 7%);
+  --aa-border-soft: color-mix(in srgb, var(--background-modifier-border) 76%, var(--interactive-accent) 24%);
+  --aa-shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.08);
+  --aa-shadow-hover: 0 16px 34px rgba(0, 0, 0, 0.14);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -85,34 +90,46 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--background-modifier-border);
   flex-shrink: 0;
-  background: color-mix(in srgb, var(--background-secondary) 90%, var(--interactive-accent) 10%);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--interactive-accent) 14%, transparent) 0%, transparent 58%),
+    color-mix(in srgb, var(--background-secondary) 90%, var(--interactive-accent) 10%);
+  backdrop-filter: blur(12px);
 }
 
 .aa-sidebar-header h3 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--text-normal);
-  letter-spacing: 0.3px;
+  letter-spacing: 0.35px;
 }
 
 .aa-sidebar-header button {
-  background: none;
-  border: none;
-  font-size: 20px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--background-primary) 78%, transparent 22%);
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent 28%);
+  font-size: 18px;
   cursor: pointer;
   color: var(--text-muted);
-  opacity: 0.5;
-  padding: 0 4px;
+  opacity: 0.85;
+  padding: 0;
   line-height: 1;
-  transition: opacity 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
 .aa-sidebar-header button:hover {
   opacity: 1;
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  transform: translateY(-1px);
 }
 
 /* 空状态 */
@@ -128,7 +145,8 @@
 .aa-sidebar-stats {
   display: flex;
   justify-content: space-around;
-  padding: 10px 12px;
+  gap: 10px;
+  padding: 12px 14px 10px;
   border-bottom: 1px solid var(--background-modifier-border);
   flex-shrink: 0;
   background: color-mix(in srgb, var(--background-secondary) 92%, var(--interactive-accent) 8%);
@@ -138,6 +156,11 @@
 .aa-stat {
   text-align: center;
   flex: 1;
+  padding: 10px 8px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--background-primary) 84%, transparent 16%);
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 60%, transparent 40%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
 .aa-stat-value {
@@ -158,8 +181,9 @@
 /* 操作按钮 */
 .aa-sidebar-actions {
   display: flex;
-  gap: 6px;
-  padding: 8px 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px 12px;
   border-bottom: 1px solid var(--background-modifier-border);
   flex-shrink: 0;
   background: color-mix(in srgb, var(--background-primary) 94%, var(--interactive-accent) 6%);
@@ -167,17 +191,22 @@
 
 .aa-sidebar-actions button {
   flex: 1;
-  padding: 6px 10px;
+  min-width: calc(50% - 4px);
+  padding: 8px 12px;
   font-size: 12px;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 75%, var(--interactive-accent) 25%);
-  background: color-mix(in srgb, var(--background-primary) 94%, #ffffff 6%);
+  border-radius: 10px;
+  border: 1px solid var(--aa-border-soft);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--background-primary) 96%, #ffffff 4%) 0%,
+    color-mix(in srgb, var(--background-secondary) 92%, transparent 8%) 100%
+  );
   color: var(--text-normal);
   cursor: pointer;
   text-align: center;
-  transition: all 0.15s;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
 .aa-sidebar-actions button:hover {
@@ -185,13 +214,24 @@
   border-color: var(--interactive-accent);
   color: var(--interactive-accent);
   transform: translateY(-1px);
-  box-shadow: 0 6px 14px rgba(0,0,0,0.1);
+  box-shadow: 0 10px 18px rgba(0,0,0,0.09);
+}
+
+.aa-sidebar-actions button.is-active {
+  background: color-mix(in srgb, var(--interactive-accent) 16%, var(--background-primary) 84%);
+  border-color: color-mix(in srgb, var(--interactive-accent) 55%, var(--background-modifier-border) 45%);
+  color: var(--interactive-accent);
+}
+
+.aa-sidebar-actions .aa-button-danger:hover {
+  color: var(--text-error, #d14343);
+  border-color: color-mix(in srgb, var(--text-error, #d14343) 48%, var(--background-modifier-border) 52%);
 }
 /* 标注列表 */
 .aa-sidebar-list {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: 12px;
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--background-primary) 96%, var(--interactive-accent) 4%) 0%,
@@ -202,88 +242,113 @@
 /* ========== 标注卡片 ========== */
 
 .aa-card {
-  margin: 8px 0;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--background-secondary) 94%, #ffffff 6%);
-  transition: box-shadow 0.2s, transform 0.15s;
+  position: relative;
+  margin: 10px 0;
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--aa-card-accent, var(--interactive-accent)) 10%, transparent) 0%, transparent 48%),
+    color-mix(in srgb, var(--background-secondary) 94%, #ffffff 6%);
+  transition: box-shadow 0.2s ease, transform 0.15s ease, border-color 0.15s ease;
   cursor: default;
-  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 80%, var(--interactive-accent) 20%);
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 80%, var(--aa-card-accent, var(--interactive-accent)) 20%);
+  border-top: 3px solid var(--aa-card-accent, var(--interactive-accent));
+  box-shadow: 0 6px 16px rgba(0,0,0,0.05);
 }
 
 .aa-card:hover {
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--aa-shadow-hover);
   transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--aa-card-accent, var(--interactive-accent)) 38%, var(--background-modifier-border) 62%);
 }
 
 .theme-dark .aa-card:hover {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+}
+
+.aa-card.is-selectable {
+  padding-left: 32px !important;
 }
 
 .aa-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 10px 2px;
+  gap: 12px;
+  padding: 10px 12px 2px;
 }
 
 .aa-card-color-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.3px;
+  text-transform: uppercase;
 }
 
 .aa-card-time {
   font-size: 10px;
   color: var(--text-faint);
+  flex-shrink: 0;
 }
 
 .aa-card-text {
-  padding: 4px 10px;
+  padding: 6px 12px 4px;
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.62;
   color: var(--text-normal);
   word-break: break-word;
 }
 
 .aa-card-note {
-  padding: 6px 10px 4px;
+  margin: 6px 12px 0;
+  padding: 9px 11px 8px;
   font-size: 12px;
   color: var(--text-muted);
-  border-top: 1px dashed var(--background-modifier-border);
-  margin-top: 4px;
+  border: 1px dashed color-mix(in srgb, var(--background-modifier-border) 74%, var(--interactive-accent) 26%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--background-primary) 82%, transparent 18%);
   line-height: 1.5;
   word-break: break-word;
 }
 
 .aa-card-line {
-  padding: 0 10px 4px;
+  padding: 8px 12px 6px;
   font-size: 10px;
   color: var(--text-faint);
+  letter-spacing: 0.2px;
 }
 
 .aa-card-actions {
   display: flex;
-  gap: 2px;
-  padding: 4px 8px 6px;
-  border-top: 1px solid var(--background-modifier-border);
+  gap: 6px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--background-modifier-border) 84%, transparent 16%);
 }
 
 .aa-card-actions button {
   flex: 1;
-  padding: 4px 6px;
+  padding: 7px 8px;
   font-size: 11px;
-  border: none;
-  background: transparent;
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--background-primary) 88%, transparent 12%);
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.15s;
+  border-radius: 9px;
+  transition: all 0.15s ease;
 }
 
 .aa-card-actions button:hover {
   background: var(--background-modifier-hover);
+  border-color: color-mix(in srgb, var(--background-modifier-border) 75%, var(--interactive-accent) 25%);
   color: var(--text-normal);
   transform: translateY(-1px);
+}
+
+.aa-card-actions button.is-danger:hover {
+  color: var(--text-error, #d14343);
+  border-color: color-mix(in srgb, var(--text-error, #d14343) 40%, var(--background-modifier-border) 60%);
 }
 
 /* ========== 批注编辑弹窗 ========== */
@@ -300,16 +365,19 @@
 }
 
 .aa-note-modal-quote {
-  background: var(--background-secondary);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--aa-quote-accent, var(--interactive-accent)) 12%, transparent) 0%, transparent 55%),
+    var(--background-secondary);
   padding: 10px 14px;
-  border-radius: 8px;
-  border-left: 3px solid var(--interactive-accent);
+  border-radius: 12px;
+  border-left: 3px solid var(--aa-quote-accent, var(--interactive-accent));
   font-style: italic;
   margin-bottom: 14px;
   font-size: 13px;
   line-height: 1.6;
   color: var(--text-muted);
   word-break: break-word;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
 .aa-note-modal-quote p {
@@ -319,8 +387,9 @@
 .aa-note-modal-colors {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -333,11 +402,16 @@
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s;
   border: 2px solid transparent;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
 .aa-color-swatch:hover {
   transform: scale(1.1);
   box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 4px currentColor;
+}
+
+.aa-color-swatch.is-selected {
+  box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 4px var(--text-accent, var(--interactive-accent));
 }
 
 .aa-note-modal textarea {
@@ -367,6 +441,7 @@
   gap: 8px;
   justify-content: flex-end;
   margin-top: 12px;
+  flex-wrap: wrap;
 }
 
 .aa-modal-buttons button {
@@ -381,27 +456,61 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
-.aa-modal-buttons button:first-child {
+.aa-modal-buttons button:first-child,
+.aa-button-primary {
   background: var(--interactive-accent);
   color: var(--text-on-accent);
 }
 
-.aa-modal-buttons button:first-child:hover {
+.aa-modal-buttons button:first-child:hover,
+.aa-button-primary:hover {
   background: var(--interactive-accent-hover);
   transform: translateY(-1px);
   box-shadow: 0 8px 16px rgba(0,0,0,0.1);
 }
 
-.aa-modal-buttons button:last-child {
+.aa-modal-buttons button:last-child,
+.aa-button-secondary {
   background: transparent;
   color: var(--text-muted);
   border: 1px solid color-mix(in srgb, var(--background-modifier-border) 85%, var(--interactive-accent) 15%);
 }
 
-.aa-modal-buttons button:last-child:hover {
+.aa-modal-buttons button:last-child:hover,
+.aa-button-secondary:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
   transform: translateY(-1px);
+}
+
+.aa-button {
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.aa-input {
+  width: 100%;
+  padding: 10px 12px;
+  margin: 8px 0;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 80%, var(--interactive-accent) 20%);
+  background: color-mix(in srgb, var(--background-primary) 96%, #ffffff 4%);
+  color: var(--text-normal);
+  font-size: 13px;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.aa-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-accent-hover) 35%, transparent 65%);
 }
 
 /* ========== 搜索弹窗 ========== */
@@ -462,20 +571,20 @@
 .aa-search-card {
   display: flex;
   align-items: stretch;
-  margin: 8px 0;
+  margin: 10px 0;
   background: color-mix(in srgb, var(--background-secondary) 94%, #ffffff 6%);
-  border-radius: 10px;
+  border-radius: 14px;
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
   border: 1px solid color-mix(in srgb, var(--background-modifier-border) 82%, var(--interactive-accent) 18%);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.06);
 }
 
 .aa-search-card:hover {
   background: var(--background-modifier-hover);
   transform: translateX(2px) translateY(-1px);
-  box-shadow: 0 6px 14px rgba(0,0,0,0.1);
+  box-shadow: 0 14px 28px rgba(0,0,0,0.12);
 }
 
 .aa-card-color {
@@ -484,7 +593,7 @@
 }
 
 .aa-card-body {
-  padding: 10px 14px;
+  padding: 12px 14px;
   flex: 1;
   min-width: 0;
 }
@@ -501,22 +610,26 @@
 /* ========== 分组容器 ========== */
 
 .aa-group-container {
-  margin: 8px 0;
-  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 80%, var(--interactive-accent) 20%);
-  border-radius: 10px;
+  margin: 12px 0;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 78%, var(--interactive-accent) 22%);
+  border-radius: 14px;
   overflow: hidden;
-  transition: box-shadow 0.2s;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  background: color-mix(in srgb, var(--background-primary) 86%, transparent 14%);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.05);
 }
 
 .aa-group-container:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: 0 16px 28px rgba(0,0,0,0.1);
+  transform: translateY(-1px);
 }
 
 .aa-group-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 11px 13px;
   background: color-mix(in srgb, var(--background-secondary) 92%, var(--interactive-accent) 8%);
   cursor: pointer;
   transition: background 0.15s;
@@ -579,30 +692,40 @@
 }
 
 .aa-group-content {
-  padding: 4px;
-  background: var(--background-primary);
+  padding: 6px 8px 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 97%, transparent 3%) 0%, var(--background-primary) 100%);
 }
 
 .aa-group-content .aa-card {
-  margin: 4px 0;
-  border-radius: 8px;
+  margin: 6px 0;
+  border-radius: 12px;
 }
 
 .aa-ungrouped-separator {
-  padding: 8px 12px;
+  padding: 12px 6px 4px;
   font-size: 11px;
   color: var(--text-muted);
-  border-top: 1px solid var(--background-modifier-border);
+  border-top: 1px solid color-mix(in srgb, var(--background-modifier-border) 76%, transparent 24%);
   margin-top: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* ========== 多选模式 ========== */
 
 .aa-card-checkbox {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 10px;
+  left: 10px;
   z-index: 1;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--background-primary) 92%, transparent 8%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .aa-card-checkbox input[type="checkbox"] {
@@ -654,7 +777,21 @@
 
 .aa-card-drop-target {
   outline: 2px dashed color-mix(in srgb, var(--interactive-accent) 70%, transparent 30%);
-  outline-offset: 2px;
+  outline-offset: 3px;
+}
+
+@media (max-width: 700px) {
+  .aa-sidebar-actions button {
+    min-width: 100%;
+  }
+
+  .aa-card-actions {
+    flex-wrap: wrap;
+  }
+
+  .aa-card-actions button {
+    min-width: calc(50% - 3px);
+  }
 }
 
 /* ========== 编辑器高亮（CM6 Decoration.mark 渲染，无需 CSS 类） ========== */

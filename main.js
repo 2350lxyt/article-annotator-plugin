@@ -1356,49 +1356,38 @@ var NoteModal = class extends import_obsidian.Modal {
     contentEl.createEl("h3", { text: t("ui.editNoteTitle", this.plugin) });
     const quoteBlock = contentEl.createDiv("aa-note-modal-quote");
     quoteBlock.createEl("p", { text: this.annotation.highlightedText });
-    quoteBlock.style.cssText = `
-      background: var(--background-secondary);
-      padding: 8px 12px;
-      border-radius: 6px;
-      border-left: 3px solid ${this.annotation.color};
-      font-style: italic;
-      margin-bottom: 12px;
-    `;
+    quoteBlock.style.setProperty("--aa-quote-accent", this.annotation.color);
     const colorRow = contentEl.createDiv("aa-note-modal-colors");
     colorRow.createEl("span", { text: t("ui.color", this.plugin) });
     this.plugin.settings.colors.forEach((color) => {
       const swatch = colorRow.createEl("span", { cls: "aa-color-swatch" });
-      swatch.style.cssText = `
-        display: inline-block;
-        width: 20px; height: 20px;
-        background: ${color};
-        border-radius: 50%;
-        margin: 0 4px;
-        cursor: pointer;
-        border: 2px solid ${color === this.annotation.color ? "var(--text-accent)" : "transparent"};
-      `;
+      swatch.style.background = color;
+      if (color === this.annotation.color) {
+        swatch.addClass("is-selected");
+      }
       swatch.onclick = () => {
         this.plugin.updateAnnotation(this.annotation.id, { color });
-        quoteBlock.style.borderLeftColor = color;
+        this.annotation.color = color;
+        quoteBlock.style.setProperty("--aa-quote-accent", color);
         contentEl.querySelectorAll(".aa-color-swatch").forEach((el) => {
-          el.style.borderColor = "transparent";
+          el.classList.remove("is-selected");
         });
-        swatch.style.borderColor = "var(--text-accent)";
+        swatch.addClass("is-selected");
       };
     });
     const textarea = contentEl.createEl("textarea", {
       attr: { placeholder: t("ui.placeholder", this.plugin), rows: "8" }
     });
-    textarea.style.cssText = "width:100%;resize:vertical;margin:8px 0;";
     if (this.annotation.noteContent) {
       textarea.value = this.annotation.noteContent;
     }
     const btnRow = contentEl.createDiv("aa-modal-buttons");
-    btnRow.style.cssText = "display:flex;gap:8px;justify-content:flex-end;";
     const saveBtn = btnRow.createEl("button", { text: t("ui.save", this.plugin) });
-    saveBtn.style.cssText = "background:var(--interactive-accent);color:var(--text-on-accent);padding:6px 16px;border-radius:4px;";
+    saveBtn.addClass("aa-button");
+    saveBtn.addClass("aa-button-primary");
     const cancelBtn = btnRow.createEl("button", { text: t("ui.cancel", this.plugin) });
-    cancelBtn.style.cssText = "background:transparent;padding:6px 16px;border-radius:4px;";
+    cancelBtn.addClass("aa-button");
+    cancelBtn.addClass("aa-button-secondary");
     saveBtn.onclick = () => {
       this.onSave(textarea.value);
       this.close();
@@ -1430,7 +1419,6 @@ var SearchModal = class extends import_obsidian.Modal {
     const input = contentEl.createEl("input", {
       attr: { type: "text", placeholder: t("ui.searchPlaceholder", this.plugin), autofocus: "true" }
     });
-    input.style.cssText = "width:100%;padding:8px 12px;margin:8px 0;border-radius:6px;";
     this.resultsEl = contentEl.createDiv("aa-search-results");
     const doSearch = (query) => this.renderResults(query);
     input.oninput = () => doSearch(input.value);
@@ -1454,53 +1442,35 @@ var SearchModal = class extends import_obsidian.Modal {
     }
     results = [...results].sort((a, b) => b.created - a.created);
     if (results.length === 0) {
-      const el = this.resultsEl.createEl("p", {
+      this.resultsEl.createEl("p", {
         text: query.trim() ? t("ui.noResults", this.plugin) : t("ui.noData", this.plugin),
         cls: "aa-no-results"
       });
-      el.style.cssText = "color:var(--text-muted);text-align:center;padding:20px;";
       return;
     }
     const stats = this.resultsEl.createDiv("aa-search-stats");
-    stats.style.cssText = "font-size:12px;color:var(--text-muted);margin-bottom:8px;";
     stats.setText(t("ui.searchResults", this.plugin).replace("${n}", results.length));
     const list = this.resultsEl.createDiv("aa-search-list");
     results.slice(0, 80).forEach((a) => {
       const card = list.createDiv("aa-search-card");
-      card.style.cssText = `
-        display:flex;align-items:stretch;margin:6px 0;
-        background:var(--background-secondary);
-        border-radius:6px;overflow:hidden;
-        cursor:pointer;transition:background 0.15s;
-      `;
       const colorBar = card.createDiv("aa-card-color");
-      colorBar.style.cssText = `width:4px;background:${a.color};flex-shrink:0;`;
+      colorBar.style.background = a.color;
       const body = card.createDiv("aa-card-body");
-      body.style.cssText = "padding:8px 12px;flex:1;min-width:0;";
       const textEl = body.createDiv("aa-search-card-text");
       textEl.setText(a.highlightedText);
-      textEl.style.cssText = "font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
       if (a.noteContent) {
         const noteEl = body.createDiv("aa-search-card-note");
         noteEl.setText(`\u{1F4AC} ${a.noteContent}`);
-        noteEl.style.cssText = "font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
       }
       const meta = body.createDiv("aa-card-meta");
-      meta.style.cssText = "font-size:11px;color:var(--text-faint);margin-top:4px;";
-      const fileName = a.filePath.split("/").pop() || a.filePath;
+      const fileName = a.filePath.split(/[\\/]/).pop() || a.filePath;
       meta.setText(`${fileName} \xB7 ${getAnnotationLocationLabel(a, this.plugin)} \xB7 ${formatTime(a.created, this.plugin)}`);
       const colorLabel = body.createDiv("aa-card-color-label");
-      colorLabel.style.cssText = `font-size:10px;color:${a.color};margin-top:2px;`;
+      colorLabel.style.color = a.color;
       colorLabel.setText(getColorName(a.color, this.plugin) || t("ui.highlights", this.plugin));
       card.onclick = () => {
         this.close();
         this.plugin.navigateToAnnotation(a);
-      };
-      card.onmouseenter = () => {
-        card.style.background = "var(--background-modifier-hover)";
-      };
-      card.onmouseleave = () => {
-        card.style.background = "var(--background-secondary)";
       };
     });
   }
@@ -1594,6 +1564,9 @@ var AnnotatorSidebarView = class extends import_obsidian.ItemView {
     // 多选按钮
     const multiSelectBtn = actions.createEl("button", { text: t("ui.selectMultiple", this.plugin) });
     multiSelectBtn.style.cssText = btnStyle;
+    if (this.isMultiSelectMode) {
+      multiSelectBtn.addClass("is-active");
+    }
     multiSelectBtn.onclick = () => {
       this.isMultiSelectMode = !this.isMultiSelectMode;
       if (!this.isMultiSelectMode) {
@@ -1943,15 +1916,19 @@ var AnnotatorSidebarView = class extends import_obsidian.ItemView {
       placeholder: t("ui.groupName", this.plugin)
     });
     input.style.cssText = "width:100%;padding:8px;margin:8px 0;border-radius:4px;border:1px solid var(--background-modifier-border);";
+    input.addClass("aa-input");
     
-    const buttonContainer = content.createDiv();
-    buttonContainer.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:12px;";
+    const buttonContainer = content.createDiv("aa-modal-buttons");
     
     const cancelBtn = buttonContainer.createEl("button", { text: t("ui.cancel", this.plugin) });
+    cancelBtn.addClass("aa-button");
+    cancelBtn.addClass("aa-button-secondary");
     cancelBtn.onclick = () => modal.close();
     
     const confirmBtn = buttonContainer.createEl("button", { text: t("ui.createGroup", this.plugin) });
     confirmBtn.style.cssText = "background:var(--interactive-accent);color:var(--text-on-accent);";
+    confirmBtn.addClass("aa-button");
+    confirmBtn.addClass("aa-button-primary");
     confirmBtn.onclick = async () => {
       const groupName = input.value.trim();
       if (!groupName) return;
@@ -1997,14 +1974,17 @@ var AnnotatorSidebarView = class extends import_obsidian.ItemView {
     });
     input.style.cssText = "width:100%;padding:8px;margin:8px 0;border-radius:4px;border:1px solid var(--background-modifier-border);";
     
-    const buttonContainer = content.createDiv();
-    buttonContainer.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:12px;";
+    const buttonContainer = content.createDiv("aa-modal-buttons");
     
     const cancelBtn = buttonContainer.createEl("button", { text: t("ui.cancel", this.plugin) });
+    cancelBtn.addClass("aa-button");
+    cancelBtn.addClass("aa-button-secondary");
     cancelBtn.onclick = () => modal.close();
     
     const confirmBtn = buttonContainer.createEl("button", { text: t("ui.renameGroup", this.plugin) });
     confirmBtn.style.cssText = "background:var(--interactive-accent);color:var(--text-on-accent);";
+    confirmBtn.addClass("aa-button");
+    confirmBtn.addClass("aa-button-primary");
     confirmBtn.onclick = async () => {
       const newName = input.value.trim();
       if (!newName || newName === group.name) {
