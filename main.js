@@ -122,7 +122,7 @@ var LANGUAGES = {
     "shortcutsHint": "💡 Set shortcuts in Obsidian Settings → Hotkeys",
     "notBound": "not bound",
     "readingModeNotice": "Note: Annotations are not visible in Reading mode. Please switch to Editing mode to view highlights.",
-    "aboutText": "Article Annotator 0.1.17 — Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Currently supports Desktop, iPad, and Android — manual sync required across devices. Automatic sync coming soon.\n\n💡 Custom highlight color uses hex code (e.g., #FCD34D).",
+    "aboutText": "Article Annotator 0.1.18 — Inspired by Microsoft Word comments. All annotation data is stored independently and does not modify the original file. Supports sync across Desktop, iPad, and Android when your vault syncs the file <strong><code>article-annotator/annotations.json</code></strong>.\n\n💡 Custom highlight color uses hex code (e.g., #FCD34D).",
   },
   "colorNames": {
     "#FCD34D": "Warm Yellow",
@@ -244,7 +244,7 @@ var LANGUAGES = {
     "shortcutsHint": "💡 可在 Obsidian 设置 → 快捷键 中为上述命令绑定快捷键",
     "notBound": "未绑定",
     "readingModeNotice": "说明：阅读模式当前不显示批注高亮，请在编辑模式下查看高亮。",
-    "aboutText": "文章批注 0.1.17 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。目前支持电脑、iPad、手机三端使用，跨设备需手动同步，自动同步功能后续更新。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
+    "aboutText": "文章批注 0.1.18 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
   },
   "colorNames": {
     "#FCD34D": "暖黄",
@@ -490,8 +490,9 @@ var DEFAULT_SETTINGS = {
   language: "zh"
 };
 var VIEW_TYPE = "article-annotator-sidebar";
-var ANNOTATION_STORE_DIR = "_article-annotator";
+var ANNOTATION_STORE_DIR = "article-annotator";
 var ANNOTATION_STORE_FILE = "annotations.json";
+var LEGACY_ANNOTATION_STORE_DIR = "_article-annotator";
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 }
@@ -924,6 +925,9 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
   getAnnotationStorePath() {
     return this.annotationStorePath;
   }
+  getLegacyAnnotationStorePath() {
+    return `${LEGACY_ANNOTATION_STORE_DIR}/${ANNOTATION_STORE_FILE}`;
+  }
   async ensureAnnotationStoreDir() {
     const adapter = this.app.vault.adapter;
     try {
@@ -936,9 +940,8 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
       }
     }
   }
-  async readAnnotationStore() {
+  async readAnnotationStoreFile(filePath) {
     const adapter = this.app.vault.adapter;
-    const filePath = this.getAnnotationStorePath();
     if (!await adapter.exists(filePath)) {
       return null;
     }
@@ -946,10 +949,40 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
       const raw = await adapter.read(filePath);
       return JSON.parse(raw);
     } catch (error) {
-      console.error("Article Annotator: failed to read annotation store", error);
+      console.error(`Article Annotator: failed to read annotation store: ${filePath}`, error);
       new import_obsidian.Notice(t("notifications.syncedStoreReadFailed", this));
       return null;
     }
+  }
+  async readAvailableAnnotationStore() {
+    const primary = await this.readAnnotationStoreFile(this.getAnnotationStorePath());
+    if (primary) {
+      return { data: primary, source: "primary" };
+    }
+    const legacy = await this.readAnnotationStoreFile(this.getLegacyAnnotationStorePath());
+    if (legacy) {
+      return { data: legacy, source: "legacy" };
+    }
+    return { data: null, source: null };
+  }
+  getAnnotationStoreCollections(data) {
+    return {
+      annotations: Array.isArray(data?.annotations) ? data.annotations.map(normalizeAnnotation).filter(Boolean) : [],
+      groups: Array.isArray(data?.groups) ? data.groups : []
+    };
+  }
+  hasAnnotationStoreContent(data) {
+    const { annotations, groups } = this.getAnnotationStoreCollections(data);
+    return annotations.length > 0 || groups.length > 0;
+  }
+  applyAnnotationStoreData(data) {
+    const { annotations, groups } = this.getAnnotationStoreCollections(data);
+    this.data = annotations;
+    this.groups = groups;
+  }
+  async readAnnotationStore() {
+    const { data } = await this.readAvailableAnnotationStore();
+    return data;
   }
   async writeAnnotationStore(data) {
     const adapter = this.app.vault.adapter;
@@ -986,22 +1019,42 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
   }
   async loadSettingsAndData() {
     const local = await this.readLegacyPluginData();
+    const hasLocalAnnotationData = this.hasAnnotationStoreContent(local);
     this.settings = Object.assign({}, DEFAULT_SETTINGS, local?.settings || {});
-    let synced = await this.readAnnotationStore();
+    const { data: synced, source } = await this.readAvailableAnnotationStore();
     if (!synced) {
-      const migratedSettings = await this.migrateLegacyPluginData(this.settings);
-      if (migratedSettings) {
-        this.settings = migratedSettings;
+      if (hasLocalAnnotationData) {
+        const migratedSettings = await this.migrateLegacyPluginData(this.settings);
+        if (migratedSettings) {
+          this.settings = migratedSettings;
+        }
+        const migrated = await this.readAnnotationStoreFile(this.getAnnotationStorePath());
+        if (migrated) {
+          this.applyAnnotationStoreData(migrated);
+          return;
+        }
       }
-      synced = await this.readAnnotationStore();
-    }
-    if (synced) {
-      this.data = Array.isArray(synced.annotations) ? synced.annotations.map(normalizeAnnotation).filter(Boolean) : [];
-      this.groups = Array.isArray(synced.groups) ? synced.groups : [];
-    } else {
       this.data = [];
       this.groups = [];
+      return;
     }
+    if (source === "legacy") {
+      if (this.hasAnnotationStoreContent(synced)) {
+        // Only create the new sync file immediately when we are migrating real annotation data.
+        await this.writeAnnotationStore(synced);
+      } else if (hasLocalAnnotationData) {
+        const migratedSettings = await this.migrateLegacyPluginData(this.settings);
+        if (migratedSettings) {
+          this.settings = migratedSettings;
+        }
+        const migrated = await this.readAnnotationStoreFile(this.getAnnotationStorePath());
+        if (migrated) {
+          this.applyAnnotationStoreData(migrated);
+          return;
+        }
+      }
+    }
+    this.applyAnnotationStoreData(synced);
   }
   async reloadAnnotationStoreFromVault() {
     if (this.isReloadingAnnotationStore)
@@ -1009,8 +1062,7 @@ var ArticleAnnotator = class extends import_obsidian.Plugin {
     this.isReloadingAnnotationStore = true;
     try {
       const synced = await this.readAnnotationStore();
-      this.data = Array.isArray(synced?.annotations) ? synced.annotations.map(normalizeAnnotation).filter(Boolean) : [];
-      this.groups = Array.isArray(synced?.groups) ? synced.groups : [];
+      this.applyAnnotationStoreData(synced);
       if (this.sidebarView) {
         this.sidebarView.update(this.activeFile);
       }
@@ -2274,9 +2326,8 @@ var AnnotatorSettingTab = class extends import_obsidian.PluginSettingTab {
     readingModeNotice.style.cssText = "padding:10px 12px;margin:8px 0;border-radius:8px;background:var(--background-secondary);color:var(--text-muted);font-size:12px;line-height:1.6;border:1px solid var(--background-modifier-border);";
     readingModeNotice.setText(t("settings.readingModeNotice", this.plugin));
     containerEl.createEl("h3", { text: t("settings.about", this.plugin) });
-    containerEl.createEl("p", {
-      text: t("settings.aboutText", this.plugin)
-    });
+    const aboutEl = containerEl.createEl("p");
+    aboutEl.innerHTML = t("settings.aboutText", this.plugin);
   }
 };
 
