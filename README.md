@@ -1,3 +1,8 @@
+本仓库根据[kilng235/article-annotator-plugin](https://github.com/kilng235/article-annotator-plugin)项目做了一点点个性化调整，将原配置文件夹`article-annotator`更名为`.article-annotator`，更符合obsidian的用户数据存储规范，使配置文件夹不会在obsidian当中展示。
+以下为原仓库描述自述。
+
+---
+
 # Article Annotator
 
 > Obsidian 插件：文章批注 —— 像 Microsoft Word 一样高亮文本并添加批注

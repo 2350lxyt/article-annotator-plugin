@@ -244,7 +244,7 @@ var LANGUAGES = {
     "shortcutsHint": "💡 可在 Obsidian 设置 → 快捷键 中为上述命令绑定快捷键",
     "notBound": "未绑定",
     "readingModeNotice": "说明：阅读模式当前不显示批注高亮，请在编辑模式下查看高亮。",
-    "aboutText": "文章批注 0.1.18 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
+    "aboutText": "文章批注 0.1.18 — 参考 Microsoft Word 批注设计。所有批注数据独立保存，不修改原文。当前已支持电脑、iPad、手机三端同步，需确保知识库同步文件 <strong><code>.article-annotator/annotations.json</code></strong>。\n\n💡 自定义高亮颜色使用十六进制代码（如 #FCD34D）。",
   },
   "colorNames": {
     "#FCD34D": "暖黄",
@@ -490,7 +490,7 @@ var DEFAULT_SETTINGS = {
   language: "zh"
 };
 var VIEW_TYPE = "article-annotator-sidebar";
-var ANNOTATION_STORE_DIR = "article-annotator";
+var ANNOTATION_STORE_DIR = ".article-annotator";
 var ANNOTATION_STORE_FILE = "annotations.json";
 var LEGACY_ANNOTATION_STORE_DIR = "_article-annotator";
 function generateId() {
